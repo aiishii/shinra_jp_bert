@@ -238,4 +238,12 @@ def main():
         with open(args.output.replace('.json', '-test.json'), 'w') as f:
             f.write(json.dumps({"data": split_dataset[2]}, ensure_ascii=False))
 
+        target_ids = []
+        for entry in split_dataset[2]:
+            target_ids.append(entry["WikipediaID"])
+
+        if target_ids:
+            with open(args.output.replace('.json', '-test-id.txt').replace('squad_', ''), 'w') as f:
+                f.write('\n'.join(target_ids))
+
 main()

@@ -11,7 +11,6 @@ import argparse
 import logging
 import random
 import pathlib
-from attrdict import AttrDict
 import json
 import MeCab
 import mojimoji
@@ -25,13 +24,10 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler, TensorDataset)
 from torch.utils.data.distributed import DistributedSampler
-try:
-    from torch.utils.tensorboard import SummaryWriter
-except:
-    from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm, trange
 
-from transformers import BertConfig, BertTokenizer, BertJapaneseTokenizer
+from transformers import BertConfig, BertTokenizer #, BertJapaneseTokenizer
 from transformers import BertModel, BertPreTrainedModel
 
 from transformers.data.processors.squad import SquadProcessor, _is_whitespace
@@ -462,16 +458,17 @@ def evaluate(args, model, tokenizer, labels, pad_token_label_id, dataset, exampl
                 # preds_max_list[i].append(preds_max[i][j])
                 # preds_sum_list[i].append(preds_sum[i][j])
 
-    scores = {
-        "loss": eval_loss,
-        "precision": precision_score(out_label_list, preds_list),
-        "recall": recall_score(out_label_list, preds_list),
-        "f1": f1_score(out_label_list, preds_list)
-    }
-
-    logger.info("***** Eval results %s *****", prefix)
-    for key in sorted(scores.keys()):
-        logger.info("  %s = %s", key, str(scores[key]))
+    scores = {}
+    # scores = {
+    #     "loss": eval_loss,
+    #     "precision": precision_score(out_label_list, preds_list),
+    #     "recall": recall_score(out_label_list, preds_list),
+    #     "f1": f1_score(out_label_list, preds_list)
+    # }
+    #
+    # logger.info("***** Eval results %s *****", prefix)
+    # for key in sorted(scores.keys()):
+    #     logger.info("  %s = %s", key, str(scores[key]))
 
     if not output_shinra:
         return scores, preds_list
