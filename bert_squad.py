@@ -33,6 +33,9 @@ from transformers import BertModel, BertPreTrainedModel
 from transformers.data.processors.squad import SquadProcessor, _is_whitespace
 from transformers import AdamW, get_linear_schedule_with_warmup
 from transformers.file_utils import is_torch_available
+from pathlib import Path
+import html_util
+from shinra_jp_scorer.scoring import get_annotation, get_ene, liner2dict
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--category', type=str, default=None,
@@ -112,7 +115,16 @@ parser.add_argument('--tokenizer_name', type=str, default='mecab_juman')
 parser.add_argument('--train_file', type=str, default=None)
 parser.add_argument('--predict_file', type=str, default=None)
 parser.add_argument('--test_file', type=str, default=None)
-
+parser.add_argument('--dist_file', type=str, default=None)
+parser.add_argument('--html_dir', type=str, default=None)
+parser.add_argument('--start_page_id', type=str, default=None)
+parser.add_argument('--end_page_id', type=str, default=None)
+parser.add_argument('--start_idx', type=int, default=None)
+parser.add_argument('--end_idx', type=int, default=None)
+# parser.add_argument('--check_mode', action='store_true',
+#                     help='only meke cache')
+parser.add_argument('--num_examples_split', type=int, default=10000)
+parser.add_argument('--num_process', type=int, default=1000)
 args = parser.parse_args()
 
 if not args.train_file: args.train_file = 'squad_{}-train.json'.format(args.category)
@@ -1420,21 +1432,119 @@ if args.do_train:
 def split_list(l, n):
     return [l[idx:idx + n] for idx in range(0,len(l), n)]
 
+def iter_files(path):
+    """Walk through all files located under a root path."""
+    if os.path.isfile(path):
+        yield path
+    elif os.path.isdir(path):
+        for dirpath, _, filenames in os.walk(path):
+            for f in filenames:
+                yield os.path.join(dirpath, f)
+    else:
+        raise RuntimeError('Path %s is invalid' % path)
+
+def html_process(args, attributes, ENE, process_count=1000, page_ids=None):
+    files = [f for f in iter_files(Path(args.html_dir))]
+    data_size = len(files)
+    squad_data = []
+    start_flg = False
+    end_flg = False
+    if not args.start_page_id and not args.start_idx:
+        start_flg = True
+    for i, file in enumerate(files):
+        page_id = Path(file).stem
+
+        if not start_flg and (page_id == args.start_page_id or i == args.start_idx):
+            start_flg = True
+        if not start_flg: continue
+        if end_flg: break
+        if (args.end_page_id  and page_id == args.end_page_id) or (args.end_idx and i == args.end_idx):
+            end_flg = True
+
+        # if args.check_mode and page_ids:
+        #     if str(page_id) in page_ids:  continue
+        #     else:
+        #         logger.info('NOT FOUND {}'.format(str(page_id)))
+
+        with open(file) as f:
+            html_content = f.read()
+        try:
+            content, title = html_util.replace_html_tag(html_content, html_tag=True)
+        except Exception as e:
+            print('ERROR! html_util', e)
+            continue
+
+        line_len = []
+        for line in content:
+            if len(line) == 0 or (len(line) > 0 and line[-1] != '\n'):
+                line_len.append(len(line)+1)
+            else:
+                line_len.append(len(line))
+        # line_len = [len(line) for line in content]
+        flags = dict()
+        paragraphs = []
+        paragraph = ''
+        found_answers = set()
+        para_start_line_num = 0
+        para_end_line_num = 0
+        for line_num, line in enumerate(content):
+            if not paragraph and len(line.replace(' ','').replace('\n','').strip()) == 0:
+                continue
+            if not paragraph:
+                para_start_line_num = line_num
+            paragraph += line
+            if len(line) == 0 or (len(line) > 0 and line[-1] != '\n'):
+                paragraph += '\n'
+
+            if len(paragraph) > 0 and len(line) > 0 and line[-1] == '\n':
+                para_end_line_num = line_num
+                qas = []
+                # for q, dist_lines in attrs.items():
+                for q in attributes:
+                    q_id = str(page_id) + '_' + str(len(paragraphs)) + '_' + str(attributes.index(q))
+
+                    if q in FLAG_ATTRS:
+                        continue
+
+                    answers = []
+                    qas.append({"question": q, "id": q_id, "answers": answers})
+
+                paragraphs.append({"context": paragraph, "start_line":para_start_line_num, "end_line":para_end_line_num, "qas": qas})
+                paragraph = ''
+
+        squad_json = {"title": title, 'WikipediaID': page_id, "ENE":ENE, "paragraphs": paragraphs}
+
+        squad_data.append(squad_json)
+        logger.info('---- {} / {} {} {} ----'.format(str(i), str(data_size), str(page_id), title))
+        if len(squad_data) >= process_count:
+            yield squad_data
+            squad_data = []
+
+    yield squad_data
+
 if args.do_formal:
+    FLAG_ATTRS = ['総称']
     mode="formal"
-    for c in args.categories:
-        args.category = c
+    processor = ShinraProcessor(tokenizer, tokenizer_name=args.tokenizer_name)
 
-        args.test_file = 'squad_{}-test.json'.format(c)
-        args.predict_file = 'squad_{}-dev.json'.format(c)
-        args.train_file = 'squad_{}-train.json'.format(c)
+    print(args.dist_file)
+    answer = get_annotation(args.dist_file)
+    ene = get_ene(answer)
 
-        examples = load_and_cache_examples(args, tokenizer, labels, pad_token_label_id, output_examples=True, mode=mode)
-        examples_split = split_list(examples, 1000)
+    _, _, _, attributes = liner2dict(answer, ene)
+    logger.info('**{} {} {} {} **'.format(args.category, ene, 'attributes:', ' '.join(attributes)))
+
+    model = model_class.from_pretrained(args.output_dir+args.best_model_dir)
+    model.to(args.device)
+
+    output_shinra_results_file = os.path.join(args.output_dir+args.best_model_dir, "shinra_{}_{}_results{}.json".format(args.category,mode,args.result_file_prefix))
+    page_ids=set()
+
+    for input_data in html_process(args, attributes, ene, process_count=args.num_process, page_ids=page_ids):
+        examples = processor._create_examples(input_data, mode)
+
+        examples_split = split_list(examples, args.num_examples_split)
         # print(len(examples), len(examples_split), [len(ex) for ex in examples_split])
-
-        model = model_class.from_pretrained(args.output_dir+args.best_model_dir)
-        model.to(args.device)
 
         for ex in examples_split:
             features, dataset = squad_convert_examples_to_features(
@@ -1448,20 +1558,10 @@ if args.do_formal:
                 return_dataset='pt',
                 pad_token_label_id=pad_token_label_id
             )
-
-            scores, preds_list, results = evaluate(args, model, tokenizer, labels, pad_token_label_id, dataset, ex, features, prefix=mode, output_shinra=True)
-            # Save results
-            # output_shinra_results_file = os.path.join(args.output_dir+args.best_model_dir, "shinra_{}_{}_results.json".format(c,mode))
-            output_shinra_results_file = os.path.join(args.output_dir+args.best_model_dir, "shinra_{}_{}_results{}.json".format(c,mode,args.result_file_prefix))
+            _, _, results = evaluate(args, model, tokenizer, labels, pad_token_label_id, dataset, ex, features, prefix=mode, output_shinra=True)
             with open(output_shinra_results_file, "a") as writer:
                 for l in results:
                     writer.write(json.dumps(l, ensure_ascii=False)+'\n')
-            # output_test_results_file = os.path.join(args.output_dir+args.best_model_dir, "test_{}_{}_results.txt".format(c,mode))
-            output_test_results_file = os.path.join(args.output_dir+args.best_model_dir, "test_{}_{}_results{}.txt".format(c,mode,args.result_file_prefix))
-            with open(output_test_results_file, "a") as writer:
-                for key in sorted(scores.keys()):
-                    writer.write("{} = {}\n".format(key, str(scores[key])))
-
 
 if args.do_predict and args.local_rank in [-1, 0]:
     # modes = ['test', 'dev']
