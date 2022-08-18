@@ -25,7 +25,7 @@ shinra_jp_bert
 |       |           |       |____xxxxx.html
 |       |             
 |       |____ Location              
-|       |             ...
+|       |       ...
 |       |             
 |       |____ work        # convert_shinra_to_squad.shが前処理後のファイルを出力するディレクトリ
 |____ models              # NICT_BERT-base_JapaneseWikipedia_32K_BPEを解凍して配置 
@@ -75,22 +75,22 @@ test_case_str=${label}_${GROUP}
 group_dir=${html_data_dir}/${GROUP}
 categories="Location_Other,GPE_Other,Province,Country,Continental_Region,Domestic_Region,Geological_Region_Other,Spa,Mountain,Island,River,Lake,Sea,Bay"
 
-python run_squad_for_shinra.py 	--do_train \
-						--group ${GROUP} \
-						--categories ${categories} \
-						--not_with_negative \
-						--per_gpu_train_batch_size ${batch_size} \
-						--per_gpu_eval_batch_size ${eval_batch_size} \
-						--learning_rate ${LR} \
-						--max_seq_length ${max_seq_length} \
-						--doc_stride ${doc_stride} \
-						--test_case_str ${test_case_str} \
-						--data_dir ${work_dir} \
-						--num_train_epochs ${num_train_epochs} \
-						--base_model_name_or_path ${base_model_dir} \
-						--model_name_or_path ${base_model_dir} \
-						--output_dir ${output_dir} \
-						--evaluate_during_training 
+python run_squad_for_shinra.py   --do_train \
+            --group ${GROUP} \
+            --categories ${categories} \
+            --not_with_negative \
+            --per_gpu_train_batch_size ${batch_size} \
+            --per_gpu_eval_batch_size ${eval_batch_size} \
+            --learning_rate ${LR} \
+            --max_seq_length ${max_seq_length} \
+            --doc_stride ${doc_stride} \
+            --test_case_str ${test_case_str} \
+            --data_dir ${work_dir} \
+            --num_train_epochs ${num_train_epochs} \
+            --base_model_name_or_path ${base_model_dir} \
+            --model_name_or_path ${base_model_dir} \
+            --output_dir ${output_dir} \
+            --evaluate_during_training 
 ```
 #### 2.3 カテゴリごとの再学習
 ログを参照して精度のよかったエポックを設定し、カテゴリごとの再学習を実施します。
@@ -103,20 +103,20 @@ group_best_epoch=9
 best_model_path=./output/${GROUP}_${test_case_str}_${GROUP}_train_batch${batch_size}_epoch${num_train_epochs}_lr${LR}_seq${max_seq_length}/epoch-${group_best_epoch}
 
 target=Bay
-python run_squad_for_shinra.py 	--do_train \
-						--category ${target} \
-						--per_gpu_train_batch_size ${batch_size} \
-						--per_gpu_eval_batch_size ${eval_batch_size} \
-						--learning_rate ${LR} \
-						--max_seq_length ${max_seq_length} \
-						--doc_stride ${doc_stride} \
-						--test_case_str ${test_case_str} \
-						--data_dir ${work_dir} \
-						--model_name_or_path ${best_model_path} \
-						--base_model_name_or_path ${base_model_dir} \
-						--num_train_epochs ${num_train_epochs} \
-						--output_dir ${output_dir} \
-						--evaluate_during_training
+python run_squad_for_shinra.py   --do_train \
+            --category ${target} \
+            --per_gpu_train_batch_size ${batch_size} \
+            --per_gpu_eval_batch_size ${eval_batch_size} \
+            --learning_rate ${LR} \
+            --max_seq_length ${max_seq_length} \
+            --doc_stride ${doc_stride} \
+            --test_case_str ${test_case_str} \
+            --data_dir ${work_dir} \
+            --model_name_or_path ${best_model_path} \
+            --base_model_name_or_path ${base_model_dir} \
+            --num_train_epochs ${num_train_epochs} \
+            --output_dir ${output_dir} \
+            --evaluate_during_training
 ```
 
 ### 3. 予測と評価
@@ -129,19 +129,19 @@ python run_squad_for_shinra.py 	--do_train \
 予測を実行します。
 ```
 category_best_epoch=9
-python run_squad_for_shinra.py 	--do_predict \
-						--category ${target} \
-						--per_gpu_train_batch_size ${batch_size} \
-						--per_gpu_eval_batch_size ${eval_batch_size} \
-						--learning_rate ${LR} \
-						--max_seq_length ${max_seq_length} \
-						--doc_stride ${doc_stride} \
-						--test_case_str ${test_case_str}  \
-						--data_dir ${work_dir} \
-						--num_train_epochs ${num_train_epochs} \
-						--base_model_name_or_path ${base_model_dir} \
-						--output_dir ${output_dir} \
-						--best_model_dir /epoch-${category_best_epoch}  
+python run_squad_for_shinra.py   --do_predict \
+            --category ${target} \
+            --per_gpu_train_batch_size ${batch_size} \
+            --per_gpu_eval_batch_size ${eval_batch_size} \
+            --learning_rate ${LR} \
+            --max_seq_length ${max_seq_length} \
+            --doc_stride ${doc_stride} \
+            --test_case_str ${test_case_str}  \
+            --data_dir ${work_dir} \
+            --num_train_epochs ${num_train_epochs} \
+            --base_model_name_or_path ${base_model_dir} \
+            --output_dir ${output_dir} \
+            --best_model_dir /epoch-${category_best_epoch}  
 ```
 予測結果は```/output/Bay_shinra2020_Location_train_batch32_epoch10_lr2e-05_seq384/epoch-9/shinra_Bay-test-results.json```(上記パラメータの場合)に出力されます。
 
@@ -153,21 +153,21 @@ python run_squad_for_shinra.py 	--do_predict \
 
 ```
 model_dir=./output/${target}_${test_case_str}_${GROUP}_train_batch${batch_size}_epoch${num_train_epochs}_lr${LR}_seq${max_seq_length}
-python regulation_bio.py 	--predicate_json ${pred_dir}/shinra_${target}_test_results.json \
-							--category ${target} \
-							--html_dir ${group_dir}/html/${target} \
-							--dist_file ${group_dir}/annotation/${target}_dist.json
+python regulation_bio.py   --predicate_json ${pred_dir}/shinra_${target}_test_results.json \
+              --category ${target} \
+              --html_dir ${group_dir}/html/${target} \
+              --dist_file ${group_dir}/annotation/${target}_dist.json
 ```
 #### 3.3 評価
 [shinra jp scorer](https://github.com/k141303/shinra_jp_scorer)で評価結果を出力します。
 
 ```
 scorer_dir=./shinra_jp_scorer
-python ${scorer_dir} 	--target ${work_dir}/${target}-test-id.txt \
-						--html ${group_dir}/html/${target} \
-						--score ${pred_dir}/scorer_score_${target} \
-						${group_dir}/annotation/${target}_dist.json \
-						${pred_dir}/shinra_${target}_test_results.reg.json
+python ${scorer_dir}   --target ${work_dir}/${target}-test-id.txt \
+            --html ${group_dir}/html/${target} \
+            --score ${pred_dir}/scorer_score_${target} \
+            ${group_dir}/annotation/${target}_dist.json \
+            ${pred_dir}/shinra_${target}_test_results.reg.json
 
 ```
 実行結果（batch_size=16）
@@ -221,35 +221,35 @@ group_dir=${html_data_dir}/${GROUP}
 # カテゴリごとの予測
 target=Bay
 category_best_epoch=8
-python run_squad_for_shinra.py 	--do_formal \
-						--category ${target} \
-						--per_gpu_train_batch_size ${batch_size} \
-						--per_gpu_eval_batch_size ${eval_batch_size} \
-						--learning_rate ${LR} \
-						--max_seq_length ${max_seq_length} \
-						--doc_stride ${doc_stride} \
-						--test_case_str ${test_case_str} \
-						--output_dir ${output_dir} \
-						--base_model_name_or_path ${base_model_dir} \
-						--best_model_dir /epoch-${category_best_epoch} \
-						--data_dir ${data_dir} \
-						--dist_file ${group_dir}/annotation/${target}_dist.json \
-						--html_dir ${group_dir}/html/${target}
+python run_squad_for_shinra.py --do_formal \
+            --category ${target} \
+            --per_gpu_train_batch_size ${batch_size} \
+            --per_gpu_eval_batch_size ${eval_batch_size} \
+            --learning_rate ${LR} \
+            --max_seq_length ${max_seq_length} \
+            --doc_stride ${doc_stride} \
+            --test_case_str ${test_case_str} \
+            --output_dir ${output_dir} \
+            --base_model_name_or_path ${base_model_dir} \
+            --best_model_dir /epoch-${category_best_epoch} \
+            --data_dir ${data_dir} \
+            --dist_file ${group_dir}/annotation/${target}_dist.json \
+            --html_dir ${group_dir}/html/${target}
 
 pred_dir=${output_dir}/${target}_${test_case_str}_train_batch${batch_size}_epoch${num_train_epochs}_lr${LR}_seq${max_seq_length}/epoch-${category_best_epoch}
 
 # 予測結果の整形
-python regulation_bio.py 	--predicate_json ${pred_dir}/shinra_${target}_formal_results.json \
-							--category ${target} \
-							--html_dir ${group_dir}/html/${target} \
-							--dist_file ${group_dir}/annotation/${target}_dist.json
+python regulation_bio.py   --predicate_json ${pred_dir}/shinra_${target}_formal_results.json \
+              --category ${target} \
+              --html_dir ${group_dir}/html/${target} \
+              --dist_file ${group_dir}/annotation/${target}_dist.json
 
 # 評価（正しく出力できているかの確認）
-python ${scorer_dir} 	--target ${work_dir}/${target}-test-id.txt \
-						--html ${group_dir}/html/${target} \
-						--score ${pred_dir}/scorer_score_${target}_formal \
-						${group_dir}/annotation/${target}_dist.json \
-						${pred_dir}/shinra_${target}_formal_results.reg.json
+python ${scorer_dir}   --target ${work_dir}/${target}-test-id.txt \
+            --html ${group_dir}/html/${target} \
+            --score ${pred_dir}/scorer_score_${target}_formal \
+            ${group_dir}/annotation/${target}_dist.json \
+            ${pred_dir}/shinra_${target}_formal_results.reg.json
 
 # submit用フォルダにリネームしてコピー
 cp ${pred_dir}/shinra_${target}_formal_results.reg.json ${submit_dir}/${GROUP}/${target}.json
